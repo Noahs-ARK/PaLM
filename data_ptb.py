@@ -160,8 +160,6 @@ class Corpus(object):
             sentences = ptb.parsed_sents(id)
             for sen_tree in sentences:
                 words = self.filter_words(sen_tree)
-                if len(words) > 10:
-                    continue
                 words = self.filter_words_tag(sen_tree)
                 words = words + ['<eos>']
 

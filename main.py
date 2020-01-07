@@ -7,7 +7,6 @@ import data, data_ptb
 import model
 from utils import batchify, get_batch, repackage_hidden
 import argparser
-from eval_parsing import parse
 
 args = argparser.args()
 # Set the random seed manually for reproducibility.
@@ -28,17 +27,15 @@ def model_save(fn):
     with open(fn, 'wb') as f:
         torch.save([model, criterion, optimizer], f)
 
-
 def model_load(fn):
     global model, criterion, optimizer
     with open(fn, 'rb') as f:
         model, criterion, optimizer = torch.load(f)
 
-
 import os
 import hashlib
 
-fn = 'corpus_{}'.format(args.max_span_length)
+fn = 'corpus'
 if os.path.exists(fn):
     print('Loading cached dataset...')
     corpus = torch.load(fn)
@@ -47,7 +44,7 @@ else:
     corpus = data.Corpus(args.data, max_span_length=args.max_span_length)
     torch.save(corpus, fn)
 
-fn_ptb = 'corpus_official_40'
+fn_ptb = 'corpus_ptb'
 if  os.path.exists(fn_ptb):
     print('Loading cached PTB dataset...')
     corpus_ptb = torch.load(fn_ptb)
@@ -60,9 +57,9 @@ sys.stdout.flush()
 eval_batch_size = 10
 test_batch_size = 1
 
-train_data, train_rps, train_trees = batchify(corpus.train, args.batch_size, args, corpus.train_trees)
-val_data, val_rps, _ = batchify(corpus.valid, corpus.valid_rps, eval_batch_size, args)
-test_data, test_rps, _ = batchify(corpus.test, corpus.test_rps, test_batch_size, args)
+train_data, train_trees = batchify(corpus.train, args.batch_size, args, corpus.train_trees)
+val_data, _ = batchify(corpus.valid, eval_batch_size, args)
+test_data, _ = batchify(corpus.test, test_batch_size, args)
 
 
 ###############################################################################
@@ -130,7 +127,7 @@ sys.stdout.flush()
 # Training code
 ###############################################################################
 
-def evaluate(data_source, rps, batch_size=10):
+def evaluate(data_source, batch_size=10):
     # Turn on evaluation mode which disables dropout.
     model.eval()
     total_loss = 0
@@ -138,7 +135,7 @@ def evaluate(data_source, rps, batch_size=10):
         hidden = model.init_hidden(batch_size)
         c_hidden = model.init_c_hidden(batch_size)
         for i in range(0, data_source.size(0) - 1, args.bptt):
-            data, rp, _, targets = get_batch(
+            data,  _, targets = get_batch(
                 data_source, i, args=args)
             hidden = repackage_hidden(hidden)
             c_hidden = repackage_hidden(c_hidden)
@@ -146,13 +143,6 @@ def evaluate(data_source, rps, batch_size=10):
             total_loss += len(data) * criterion(
                 model.decoder.weight, model.decoder.bias, output, targets).data
         return total_loss.item() / len(data_source)
-
-def eval_parsing():
-    test_sents = corpus_ptb.train_sens if args.wsj10 else corpus_ptb.test_sens
-    test_trees = corpus_ptb.train_trees if args.wsj10 else corpus_ptb.test_trees
-    test_rps = corpus_ptb.train_rps if args.wsj10 else corpus_ptb.test_rps
-    f1 = parse(model=model, sents=test_sents, dictionary=corpus.dictionary, rps=test_rps, gold_trees=test_trees, batch_size=1, wsj10=args.wsj10)
-    return f1
 
 def train(update_parser=True):
     total_loss = 0
@@ -172,7 +162,7 @@ def train(update_parser=True):
         lr2 = optimizer.param_groups[0]['lr']
         optimizer.param_groups[0]['lr'] = lr2 * seq_len / args.bptt
         model.train()
-        data, rp, tree, targets = get_batch(
+        data, tree, targets = get_batch(
             train_data, i, args=args, seq_len=seq_len, trees=train_trees)
 
         # Starting each batch, we detach the hidden state from how it was previously produced.
@@ -247,7 +237,7 @@ try:
                 if "ax" in optimizer.state[prm]:
                     prm.data = optimizer.state[prm]['ax'].clone()
 
-            val_loss2 = evaluate(val_data, val_rps, eval_batch_size)
+            val_loss2 = evaluate(val_data, eval_batch_size)
             print('-' * 89)
             print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
                   'valid ppl {:8.2f} | valid bpc {:8.3f}'.format(
@@ -263,7 +253,7 @@ try:
 
             if epoch == args.finetuning:
                 model_load(args.save + ".asgd")
-                val_loss = evaluate(val_data, val_rps, eval_batch_size)
+                val_loss = evaluate(val_data, eval_batch_size)
                 print('=' * 89)
                 print('| Switching to finetuning | valid loss {:5.2f} | valid ppl {:8.2f} | valid bpc {:8.3f}'.format(
                     val_loss, math.exp(val_loss), val_loss / math.log(2)))
@@ -274,7 +264,7 @@ try:
             if epoch > args.finetuning + 100 and len(best_val_loss) > args.nonmono and val_loss2 > min(
                     best_val_loss[:-args.nonmono]):
                 model_load(args.save + ".asgd")
-                test_loss = evaluate(test_data, test_rps, test_batch_size)
+                test_loss = evaluate(test_data, test_batch_size)
                 print('=' * 89)
                 print('| End of training | test loss {:5.2f} | test ppl {:8.2f} | test bpc {:8.3f}'.format(
                     test_loss, math.exp(test_loss), test_loss / math.log(2)))
@@ -284,7 +274,7 @@ try:
                 sys.exit(1)
             best_val_loss.append(val_loss2)
         else:
-            val_loss = evaluate(val_data, val_rps, eval_batch_size)
+            val_loss = evaluate(val_data, eval_batch_size)
             print('-' * 89)
             print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
                   'valid ppl {:8.2f} | valid bpc {:8.3f}'.format(
@@ -298,6 +288,7 @@ try:
             if args.optimizer == 'sgd' and 't0' not in optimizer.param_groups[0] and (
                     len(best_val_loss) > args.nonmono and val_loss > min(best_val_loss[:-args.nonmono])):
                 print('Switching to ASGD')
+                model_save(args.save + ".parser")
                 model_load(args.save + ".sgd")
                 optimizer = torch.optim.ASGD(model.parameters(), lr=args.lr, t0=0, lambd=0., weight_decay=args.wdecay)
 
@@ -312,7 +303,7 @@ except KeyboardInterrupt:
 model_load(args.save)
 
 # Run on test data.
-test_loss = evaluate(test_data, test_rps, test_batch_size)
+test_loss = evaluate(test_data, test_batch_size)
 print('=' * 89)
 print('| End of training | test loss {:5.2f} | test ppl {:8.2f} | test bpc {:8.3f}'.format(
     test_loss, math.exp(test_loss), test_loss / math.log(2)))

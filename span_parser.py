@@ -30,7 +30,6 @@ class SpanScorer(nn.Module):
                  drop=0.,
                  max_span_length=10):
         super(SpanScorer, self).__init__()
-        assert self._fw_rrnn_ or self._bw_rrnn_
         self._input_size_ = input_size
         self._hidden_size_ = hidden_size
         self._rrnn_size_ = rrnn_size
@@ -65,7 +64,6 @@ class SpanScorer(nn.Module):
                        fan_in=self._hidden_size_,
                        fan_out=1)
         self._b1_.data.zero_()
-
         size = self._rrnn_size_ // 2
         self.rrnn_fw = RRNNCell(
             n_in=self._input_size_,
@@ -123,8 +121,7 @@ class SpanScorer(nn.Module):
         if hidden_len is not None:
             assert hidden_len == self._max_span_length_ + 1
         x_aug = x if init_x is None else t.cat([init_x, x], dim=0)
-
-        size = self._rrnn_size_
+        size = self._rrnn_size_ // 2
 
         rrnn_h_fw, _, rrnn_f_fw = self.rrnn_fw(
             x_aug, init_hidden=x.new_zeros(batch_size, size))

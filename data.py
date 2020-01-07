@@ -97,7 +97,6 @@ class Corpus(object):
                 tree = None
                 if is_train:
                     if n == 0:
-                        print (words)
                         tree = torch.zeros(len(words), self.max_span_length - 1).detach()
                     else:
                         assert n >= 1

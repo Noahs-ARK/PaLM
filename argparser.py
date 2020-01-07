@@ -12,8 +12,6 @@ def args():
     parser = argparse.ArgumentParser(description='PyTorch PennTreeBank RNN/LSTM Language Model')
     parser.add_argument('--data', type=str, default='data/penn/',
                         help='location of the data corpus')
-    parser.add_argument('--data_wiki', type=str, default='data/wikitext-2/',
-                        help='location of the data corpus')
     parser.add_argument('--data_ptb', type=str, default='data/penn/',
                         help='location of the ptb data corpus')
     parser.add_argument('--emsize', type=int, default=400,
@@ -74,7 +72,6 @@ def args():
                         help='max span length')
     parser.add_argument('--finetuning', type=int, default=500,
                         help='When (which epochs) to switch to finetuning')
-    parser.add_argument('--wsj10', type=str2bool, default=False, help='WSJ10')
     args = parser.parse_args()
     args.tie_weights = True
     return args
