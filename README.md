@@ -1,4 +1,4 @@
-# Rational Recurrences
+# PaLM
 
 PyTorch implementation for [PaLM: A Hybrid Parser and Language Model](https://homes.cs.washington.edu/~hapeng/paper/peng2019palm.pdf).
 
