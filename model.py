@@ -27,7 +27,6 @@ class RNNModel(nn.Module):
         self.wdrop = args.wdrop
         self.tie_weights = args.tie_weights
         self.max_span_length = args.max_span_length
-        self._fw_rrnn_, self._bw_rrnn_ = args.fw_rrnn, args.bw_rrnn
         self._cxt_size_ = args.cxtsize
         self._rrnn_size_ = args.rrnn_size
         self.nonlinearity = torch.tanh
@@ -81,7 +80,6 @@ class RNNModel(nn.Module):
         emb_drop = self.lockdrop(emb, self.dropouti)
         rnn_h = emb_drop
         new_hidden = []
-
         rnn_hs, dropped_rnn_hs = [], []
         span_scores = None
         for l, rnn in enumerate(self.rnns):
